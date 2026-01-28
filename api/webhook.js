@@ -1,34 +1,43 @@
+export const config = {
+  api: {
+    bodyParser: true, // pastikan req.body kebaca
+  },
+};
+
 export default async function handler(req, res) {
-  // Telegram webhook itu POST
+  // Telegram cuma butuh 200 OK, jadi kita jawab cepat
   if (req.method !== "POST") return res.status(200).send("ok");
 
   try {
+    // ===== Optional: Secret check =====
     const secret = process.env.TG_WEBHOOK_SECRET || "";
     const got = req.headers["x-telegram-bot-api-secret-token"] || "";
 
-    // Verifikasi secret token (biar gak ditembak orang random)
     if (secret && got !== secret) {
-      return res.status(401).send("unauthorized");
+      // tetap balas 200 biar Telegram gak retry terus
+      return res.status(200).send("unauthorized");
     }
 
-    // Jawab cepat ke Telegram dulu (biar Telegram gak retry)
-    // Tapi kita tetap lanjut forward di belakang dengan await (aman untuk skala kecil-menengah).
-    const payload = req.body;
-
+    // ===== Forward ke Apps Script =====
     const gasUrl = process.env.GAS_WEBAPP_URL;
-    if (!gasUrl) return res.status(500).send("GAS_WEBAPP_URL not set");
+    if (!gasUrl) {
+      // jangan 500, cukup 200 biar Telegram berhenti retry
+      return res.status(200).send("GAS_WEBAPP_URL not set");
+    }
 
-    // Forward payload ke Apps Script (Telegram update mentah)
+    // req.body harusnya object
+    const payload = req.body || {};
+
+    // Forward (jangan bikin error ngaco)
     await fetch(gasUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      redirect: "follow",
     });
 
     return res.status(200).send("ok");
-  } catch (e) {
-    // Tetap balas 200 biar Telegram gak nge-spam retry
+  } catch (err) {
+    // Anti retry: tetap 200
     return res.status(200).send("ok");
   }
 }
