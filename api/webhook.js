@@ -1,15 +1,15 @@
 export const config = {
   api: {
-    bodyParser: true, // pastikan req.body kebaca
+    bodyParser: true, 
   },
 };
 
 export default async function handler(req, res) {
-  // Telegram cuma butuh 200 OK, jadi kita jawab cepat
+  // Telegram cuma butuh 200 OK
   if (req.method !== "POST") return res.status(200).send("ok");
 
   try {
-    // ===== Optional: Secret check =====
+    // ===== Cek Kata Sandi =====
     const secret = process.env.TG_WEBHOOK_SECRET || "";
     const got = req.headers["x-telegram-bot-api-secret-token"] || "";
 
@@ -25,17 +25,18 @@ export default async function handler(req, res) {
 
     const payload = req.body || {};
 
-    // Forward TANPA AWAIT (Fire and Forget)
-    fetch(gasUrl, {
+    // WAJIB PAKAI AWAIT di Vercel agar koneksi ke GAS tidak terputus.
+    // Aman dari spam karena GAS sudah punya fitur Anti-Duplikat (CacheService).
+    await fetch(gasUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }).catch(err => console.error("Gagal forward ke GAS:", err));
+    });
 
-    // Langsung tembak 200 OK ke Telegram dalam hitungan milidetik
     return res.status(200).send("ok");
     
   } catch (err) {
+    // Kalau Vercel gagal konek ke GAS, tetap balas 200 biar Telegram gak ngamuk
     return res.status(200).send("ok");
   }
 }
